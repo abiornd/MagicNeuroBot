@@ -2,13 +2,25 @@ import os
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from flask import Flask
+from threading import Thread
+
+# Создаем Flask приложение для обработки health checks
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Нумерологический бот работает!"
+
+# Запускаем Flask в отдельном потоке
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
 
 # Получаем токен из переменных окружения
 API_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-# Проверяем, что токен установлен
 if not API_TOKEN:
-    logging.error("Токен бота не найден! Установите переменную TELEGRAM_BOT_TOKEN")
+    logging.error("Токен бота не найден!")
     exit(1)
 
 # Настройка логирования
@@ -289,14 +301,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Главная функция
 def main():
-    # Создаем приложение и передаем ему токен
-    application = Application.builder().token(API_TOKEN).build()
+    # Запускаем Flask в отдельном потоке
+    flask_thread = Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
     
-    # Добавляем обработчики
+    # Запускаем бота
+    application = Application.builder().token(API_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Запускаем бота на постоянный опрос серверов Telegram
     logging.info("Бот запущен...")
     application.run_polling()
 
